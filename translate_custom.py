@@ -154,7 +154,7 @@ def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, 
       # FLAGS.data_dir, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
   train_dir = output_dir
   if output_dir == FLAGS.train_dir:
-    train_dir = output_dir + os.path.sep + 
+    train_dir = output_dir + os.path.sep + train_file_path
   first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_data(
       first_lang, second_lang, FLAGS.data_dir, train_file_path, dev_file_path, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
   with tf.Session() as sess:
