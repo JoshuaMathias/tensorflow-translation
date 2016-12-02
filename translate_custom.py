@@ -275,7 +275,8 @@ def decode(first_lang, second_lang, in_filename, out_filename):
           outputs = outputs[:outputs.index(data_utils.EOS_ID)]
         # Print out sentence corresponding to outputs.
         output_sentence = " ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs])
-        out_file.write(output_sentence)
+        out_file.write("\n"+sentence+"\n")
+        out_file.write(output_sentence+"\n")
         # print(" ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs]))
         # print("> ", end="")
         # sys.stdout.flush()
