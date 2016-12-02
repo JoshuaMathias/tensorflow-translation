@@ -61,7 +61,7 @@ tf.app.flags.DEFINE_string("data_dir", "data", "Data directory")
 tf.app.flags.DEFINE_string("train_dir", "training", "Training directory.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
-tf.app.flags.DEFINE_integer("steps_per_checkpoint", 200,
+tf.app.flags.DEFINE_integer("steps_per_checkpoint", 500,
                             "How many training steps to do per checkpoint.")
 tf.app.flags.DEFINE_boolean("decode", False,
                             "Set to True for interactive decoding.")
@@ -155,6 +155,8 @@ def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, 
   train_dir = output_dir
   if output_dir == FLAGS.train_dir:
     train_dir = output_dir + os.path.sep + train_file_path
+  if not os.path.exists(train_dir):
+    os.makedirs(train_dir)
   first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_data(
       first_lang, second_lang, FLAGS.data_dir, train_file_path, dev_file_path, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
   with tf.Session() as sess:
