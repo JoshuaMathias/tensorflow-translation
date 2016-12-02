@@ -248,7 +248,7 @@ def decode(first_lang, second_lang, in_filename, out_filename):
     # sys.stdout.flush()
     # sentence = sys.stdin.readline()
     # while sentence:
-    with open(in_filename, encoding="utf8") as in_file, open(out_filename, encoding="utf8") as out_file:
+    with open(in_filename, encoding="utf8") as in_file, open(out_filename, 'w', encoding="utf8") as out_file:
       for sentence in in_file:
         # print("Input sentence: "+sentence)
         # Get token-ids for the input sentence.
