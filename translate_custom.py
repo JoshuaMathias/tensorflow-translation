@@ -141,7 +141,8 @@ def create_model(session, forward_only):
   return model
 
 
-def train(first_lang, second_lang, train_file_path, dev_file_path):
+def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps):
+  print("Training model")
   """Train a en->fr translation model."""
   # # Prepare WMT data.
   # print("Preparing WMT data in %s" % FLAGS.data_dir)
@@ -172,7 +173,8 @@ def train(first_lang, second_lang, train_file_path, dev_file_path):
     step_time, loss = 0.0, 0.0
     current_step = 0
     previous_losses = []
-    while True:
+    print("Start training")
+    for i in range(total_steps):
       # Choose a bucket according to data distribution. We pick a random number
       # in [0, 1] and use the corresponding interval in train_buckets_scale.
       random_number_01 = np.random.random_sample()
@@ -219,7 +221,8 @@ def train(first_lang, second_lang, train_file_path, dev_file_path):
         sys.stdout.flush()
 
 
-def decode():
+def decode(first_lang, second_lang):
+  # print("Decoding from standard input")
   with tf.Session() as sess:
     # Create model and load parameters.
     model = create_model(sess, True)
@@ -227,9 +230,9 @@ def decode():
 
     # Load vocabularies.
     first_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d." + first_lang % FLAGS.first_vocab_size)
+                                 "vocab%d." % FLAGS.first_vocab_size + first_lang)
     second_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d." + second_lang % FLAGS.second_vocab_size)
+                                 "vocab%d." % FLAGS.second_vocab_size + second_lang)
     first_vocab, _ = data_utils.initialize_vocabulary(first_vocab_path)
     _, rev_second_vocab = data_utils.initialize_vocabulary(second_vocab_path)
 
@@ -238,8 +241,9 @@ def decode():
     sys.stdout.flush()
     sentence = sys.stdin.readline()
     while sentence:
+      # print("Input sentence: "+sentence)
       # Get token-ids for the input sentence.
-      tokfirst_ids = data_utils.sentence_to_tokfirst_ids(tf.compat.as_bytes(sentence), first_vocab)
+      tokfirst_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), first_vocab)
       # Which bucket does it belong to?
       bucket_id = len(_buckets) - 1
       for i, bucket in enumerate(_buckets):
@@ -260,7 +264,7 @@ def decode():
       # If there is an EOS symbol in outputs, cut them at that point.
       if data_utils.EOS_ID in outputs:
         outputs = outputs[:outputs.index(data_utils.EOS_ID)]
-      # Print out French sentence corresponding to outputs.
+      # Print out sentence corresponding to outputs.
       print(" ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs]))
       print("> ", end="")
       sys.stdout.flush()
@@ -287,19 +291,27 @@ def self_test():
                  bucket_id, False)
 
 
-def main(_):
-  if FLAGS.self_test:
+def main(args):
+  if len(args) < 2:
+    print("Enter train, decode, or test")
+    return
+  if "test" in args[1]:
     self_test()
-  elif FLAGS.decode:
-    decode()
+  elif "decode" in args[1]:
+    if len(args) > 3:
+      first_lang = args[2]
+      second_lang = args[3]
+      decode(first_lang, second_lang)
+    else:
+      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE")
   else:
-    if len(sys.argv) > 4:
-      first_lang = sys.argv[1]
-      second_lang = sys.argv[2]
-      train_file_path = sys.argv[3]
-      dev_file_path = sys.argv[4]
-      if len(sys.argv) > 5:
-        output_dir = sys.argv[5]
+    if len(args) > 5:
+      first_lang = args[2]
+      second_lang = args[3]
+      train_file_path = args[4]
+      dev_file_path = args[5]
+      if len(args) > 6:
+        output_dir = args[6]
       else:
         output_dir = os.getcwd()
       # tf.app.flags.DEFINE_string("first_lang", first_lang, "First language")
