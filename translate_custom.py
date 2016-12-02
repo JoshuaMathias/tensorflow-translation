@@ -307,12 +307,14 @@ def main(args):
   if "test" in args[1]:
     self_test()
   elif "decode" in args[1]:
-    if len(args) > 3:
+    if len(args) > 5:
       first_lang = args[2]
       second_lang = args[3]
-      decode(first_lang, second_lang)
+      in_filename = args[4]
+      out_filename = args[5]
+      decode(first_lang, second_lang, in_filename, out_filename)
     else:
-      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE")
+      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE INPUT_FILE OUTPUT_FILE")
   else:
     if len(args) > 5:
       first_lang = args[2]
