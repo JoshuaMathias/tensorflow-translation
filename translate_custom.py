@@ -145,13 +145,16 @@ def create_model(session, forward_only):
   return model
 
 
-def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps):
+def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, output_dir):
   print("Training model")
   """Train a en->fr translation model."""
   # # Prepare WMT data.
   # print("Preparing WMT data in %s" % FLAGS.data_dir)
   # first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_wmt_data(
       # FLAGS.data_dir, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
+  train_dir = output_dir
+  if output_dir == FLAGS.train_dir:
+    train_dir = output_dir + os.path.sep + 
   first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_data(
       first_lang, second_lang, FLAGS.data_dir, train_file_path, dev_file_path, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
   with tf.Session() as sess:
@@ -245,7 +248,7 @@ def decode(first_lang, second_lang, in_filename, out_filename):
     # sys.stdout.flush()
     # sentence = sys.stdin.readline()
     # while sentence:
-    with open(in_filename) as in_file, open(out_filename) as out_file:
+    with open(in_filename, encoding="utf8") as in_file, open(out_filename, encoding="utf8") as out_file:
       for sentence in in_file:
         # print("Input sentence: "+sentence)
         # Get token-ids for the input sentence.
@@ -316,20 +319,21 @@ def main(args):
     else:
       print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE INPUT_FILE OUTPUT_FILE")
   else:
-    if len(args) > 5:
+    if len(args) > 6:
       first_lang = args[2]
       second_lang = args[3]
       train_file_path = args[4]
       dev_file_path = args[5]
-      if len(args) > 6:
-        output_dir = args[6]
+      num_steps = int(args[6])
+      if len(args) > 7:
+        output_dir = args[7]
       else:
-        output_dir = os.getcwd()
+        output_dir = FLAGS.train_dir
       # tf.app.flags.DEFINE_string("first_lang", first_lang, "First language")
       # tf.app.flags.DEFINE_string("second_lang", second_lang, "Second language")
-      train(first_lang, second_lang, train_file_path, dev_file_path)
+      train(first_lang, second_lang, train_file_path, dev_file_path, num_steps, output_dir)
     else:
-      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE TRAIN_FILE_PATH DEV_FILE_PATH [OUTPUT_DIRECTORY]")
+      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE TRAIN_FILE_PATH DEV_FILE_PATH NUM_STEPS [OUTPUT_DIRECTORY]")
 
 if __name__ == "__main__":
   tf.app.run()
