@@ -17,11 +17,15 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import gzip
 import os
 import re
 import tarfile
+import collections
+import regex
+import sys
 
 from six.moves import urllib
 
@@ -41,12 +45,44 @@ UNK_ID = 3
 
 # Regular expressions used to tokenize.
 _WORD_SPLIT = re.compile(b"([.,!?\"':;)(])")
+_CHAR_SPLIT = re.compile(br".")
 _DIGIT_RE = re.compile(br"\d")
 
 # URLs for WMT data.
 _WMT_ENFR_TRAIN_URL = "http://www.statmt.org/wmt10/training-giga-fren.tar"
 _WMT_ENFR_DEV_URL = "http://www.statmt.org/wmt15/dev-v2.tgz"
 
+
+
+
+def get_stats(vocab):
+  pairs = collections.defaultdict(int)
+  for word, freq in vocab.items():
+    symbols = word.split()
+  for i in range(len(symbols)-1):
+    pairs[symbols[i],symbols[i+1]] += freq
+  return pairs
+
+def merge_vocab(pair, v_in):
+  v_out = {}
+  bigram = re.escape(' '.join(pair))
+  p = re.compile(r'(?<!\S)' + bigram + r'(?!\S)')
+  for word in v_in:
+    w_out = p.sub(''.join(pair), word)
+    v_out[w_out] = v_in[word]
+  return v_out
+
+# format:   vocab = {'l o w </w>' : 5, 'l o w e r </w>' : 2,
+# 'n e w e s t </w>':6, 'w i d e s t </w>':3}
+def learn_bpe(vocab):
+  vocab = {'l o w </w>' : 5, 'l o w e r </w>' : 2,
+  'n e w e s t </w>':6, 'w i d e s t </w>':3}
+  num_merges = 10
+  for i in range(num_merges):
+    pairs = get_stats(vocab)
+    best = max(pairs, key=pairs.get)
+    vocab = merge_vocab(best, vocab)
+    print(best)
 
 def maybe_download(directory, filename, url):
   """Download filename from url unless it's already in directory."""
@@ -102,7 +138,34 @@ def get_wmt_enfr_dev_set(directory):
   return dev_path
 
 
+def clean_file(file_path):
+  clean_pattern = regex.compile("[^\p{L}\p{N}\[\.,!\?\"':-;\)\(\]\s]")
+  extra_space = regex.compile("[^\S\n]{2,}")
+  with open(file_path, "r") as file:
+    clean_file_path = os.path.splitext(file_path)[0]+"_clean"+os.path.splitext(file_path)[1]
+    with open(clean_file_path, "w") as clean_file:
+      lines = file.readlines()
+      for line in lines:
+        # print(clean_pattern.sub("", line))
+        new_line = extra_space.sub(" ",clean_pattern.sub(" ", line))
+        clean_file.write(clean_pattern.sub(" ", new_line))
 
+def prepare_char_tokens(file_path):
+  with open(file_path, "r") as file:
+    clean_file_path = os.path.splitext(file_path)[0]+"_chars"+os.path.splitext(file_path)[1]
+    with open(clean_file_path, "w") as clean_file:
+      lines = file.readlines()
+      for line in lines:
+        new_line = ""
+        for i in range(len(line)):
+          if line[i] == " ":
+            if i > 0:
+              new_line += "*"
+          else:
+            new_line += line[i]
+          if i < len(line)-1:
+            new_line += " "
+        clean_file.write(new_line)
 
 def basic_tokenizer(sentence):
   """Very basic tokenizer: split the sentence into a list of tokens."""
@@ -111,6 +174,13 @@ def basic_tokenizer(sentence):
     words.extend(_WORD_SPLIT.split(space_separated_fragment))
   return [w for w in words if w]
 
+def char_tokenizer(sentence):
+  """Split the sentence into a list of characters."""
+  chars = list(sentence.decode("utf-8"))
+  char_bytes = [c.encode("utf-8") for c in chars]
+  # print(char_bytes)
+  return char_bytes
+  # return [w for w in words if w]
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
                       tokenizer=None, normalize_digits=True):
@@ -130,6 +200,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
       if None, basic_tokenizer will be used.
     normalize_digits: Boolean; if true, all digits are replaced by 0s.
   """
+
   if not gfile.Exists(vocabulary_path):
     print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
     vocab = {}
@@ -203,13 +274,15 @@ def sentence_to_token_ids(sentence, vocabulary,
     a list of integers, the token-ids for the sentence.
   """
 
-  if tokenizer:
-    words = tokenizer(sentence)
+  if tokenizer and tokenizer == "chars":
+    words = char_tokenizer(sentence)
   else:
     words = basic_tokenizer(sentence)
   if not normalize_digits:
     return [vocabulary.get(w, UNK_ID) for w in words]
   # Normalize digits by 0 before looking words up in the vocabulary.
+  # print(str(words))
+  # return words
   return [vocabulary.get(_DIGIT_RE.sub(b"0", w), UNK_ID) for w in words]
 
 
@@ -311,7 +384,8 @@ def prepare_data(first_lang, second_lang, data_dir, train_path, dev_path, first_
   # Get wmt data to the specified directory.
   # train_path = get_wmt_enfr_train_set(data_dir)
   # dev_path = get_wmt_enfr_dev_set(data_dir)
-
+  if tokenizer and tokenizer == "chars":
+    tokenizer = char_tokenizer
   # Create vocabularies of the appropriate sizes.
   first_vocab_path = os.path.join(data_dir, "vocab%d." % first_vocabulary_size + first_lang)
   second_vocab_path = os.path.join(data_dir, "vocab%d." % second_vocabulary_size + second_lang)
@@ -333,3 +407,8 @@ def prepare_data(first_lang, second_lang, data_dir, train_path, dev_path, first_
   return (first_train_ids_path, second_train_ids_path,
           first_dev_ids_path, second_dev_ids_path,
           first_vocab_path, second_vocab_path)
+
+if (sys.argv[1] == "clean"):
+  clean_file(sys.argv[2])
+if (sys.argv[1] == "chars"):
+  prepare_char_tokens(sys.argv[2])

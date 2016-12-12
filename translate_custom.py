@@ -54,15 +54,25 @@ tf.app.flags.DEFINE_float("max_gradient_norm", 5.0,
 tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 tf.app.flags.DEFINE_integer("size", 1024, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("num_layers", 3, "Number of layers in the model.")
+tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("first_vocab_size", 40000, "English vocabulary size.")
 tf.app.flags.DEFINE_integer("second_vocab_size", 40000, "French vocabulary size.")
-tf.app.flags.DEFINE_string("data_dir", "data", "Data directory")
-tf.app.flags.DEFINE_string("train_dir", "training", "Training directory.")
+tf.app.flags.DEFINE_string("data_dir", "data", "Directory for vocabularies and token ids.")
+tf.app.flags.DEFINE_string("train_dir", "training", "Training directory, to store checkpoints.")
+tf.app.flags.DEFINE_string("train_file_path", "data", "Path of training data.")
+tf.app.flags.DEFINE_string("dev_file_path", "dev_data", "Path of development data.")
+# tf.app.flags.DEFINE_string("output_dir", "output", "Directory for the translated output.")
+tf.app.flags.DEFINE_string("in_file_path", "in_file.en", "Directory for the input to translate.")
+tf.app.flags.DEFINE_string("out_file_path", "output_file.es", "Directory for the translated output.")
+tf.app.flags.DEFINE_string("first_lang", "en", "Source language or first language used in training.")
+tf.app.flags.DEFINE_string("second_lang", "es", "Target language or second language used in training.")
+tf.app.flags.DEFINE_string("token_type", "words", "One of 'words', 'pieces', or 'chars'. Defines how the data is separated into tokens.")
+tf.app.flags.DEFINE_string("cell_type", "gru", "Either 'LSTM' or 'GRU', case insensitive.")
 tf.app.flags.DEFINE_integer("max_train_data_size", 0,
                             "Limit on the size of training data (0: no limit).")
-tf.app.flags.DEFINE_integer("steps_per_checkpoint", 500,
-                            "How many training steps to do per checkpoint.")
+tf.app.flags.DEFINE_integer("steps_per_checkpoint", 500, "How many training steps to do per checkpoint.")
+tf.app.flags.DEFINE_integer("steps_to_train", 1000,
+                            "Total number of steps to train.")
 tf.app.flags.DEFINE_boolean("decode", False,
                             "Set to True for interactive decoding.")
 tf.app.flags.DEFINE_boolean("self_test", False,
@@ -75,9 +85,10 @@ FLAGS = tf.app.flags.FLAGS
 # We use a number of buckets and pad to the closest one for efficiency.
 # See seq2seq_model.Seq2SeqModel for details of how they work.
 _buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
+word_buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
+char_buckets = [(50, 100), (100, 150), (200, 250), (400, 450)]
 
-
-def read_data(source_path, target_path, max_size=None):
+def read_data(source_path, target_path, token_type, max_size=None):
   """Read data from source and target files and put into buckets.
 
   Args:
@@ -99,6 +110,7 @@ def read_data(source_path, target_path, max_size=None):
     with tf.gfile.GFile(target_path, mode="r") as target_file:
       source, target = source_file.readline(), target_file.readline()
       counter = 0
+      # print("target: "+str(target))
       while source and target and (not max_size or counter < max_size):
         counter += 1
         if counter % 100000 == 0:
@@ -107,6 +119,7 @@ def read_data(source_path, target_path, max_size=None):
         source_ids = [int(x) for x in source.split()]
         target_ids = [int(x) for x in target.split()]
         target_ids.append(data_utils.EOS_ID)
+        # print("target_ids: "+str(target_ids))
         for bucket_id, (source_size, target_size) in enumerate(_buckets):
           if len(source_ids) < source_size and len(target_ids) < target_size:
             data_set[bucket_id].append([source_ids, target_ids])
@@ -115,8 +128,11 @@ def read_data(source_path, target_path, max_size=None):
   return data_set
 
 
-def create_model(session, forward_only):
+def create_model(session, forward_only, train_dir):
   """Create translation model and initialize or load parameters in session."""
+  use_lstm = False
+  if FLAGS.cell_type.lower() == 'lstm':
+    use_lstm = True
   dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
   model = seq2seq_model.Seq2SeqModel(
       FLAGS.first_vocab_size,
@@ -128,9 +144,10 @@ def create_model(session, forward_only):
       FLAGS.batch_size,
       FLAGS.learning_rate,
       FLAGS.learning_rate_decay_factor,
-      forward_only=forward_only)
+      forward_only=forward_only,
+      use_lstm=use_lstm)
       # dtype=dtype)
-  ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
+  ckpt = tf.train.get_checkpoint_state(train_dir)
   try:
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
       print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
@@ -144,31 +161,38 @@ def create_model(session, forward_only):
     model.saver.restore(session, ckpt.model_checkpoint_path)
   return model
 
+def get_train_dir(file_path):
+  train_dir = FLAGS.train_dir
+  if train_dir == "training":
+    train_dir = FLAGS.train_dir + os.path.sep + file_path + "_"+FLAGS.token_type+"_"+str(FLAGS.num_layers)+"_"+str(FLAGS.size)+"_"+FLAGS.cell_type
+  if not os.path.exists(train_dir):
+    os.makedirs(train_dir)
+  return train_dir
 
-def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, output_dir):
+def train():
   print("Training model")
   """Train a en->fr translation model."""
   # # Prepare WMT data.
   # print("Preparing WMT data in %s" % FLAGS.data_dir)
   # first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_wmt_data(
       # FLAGS.data_dir, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
-  train_dir = output_dir
-  if output_dir == FLAGS.train_dir:
-    train_dir = output_dir + os.path.sep + train_file_path
-  if not os.path.exists(train_dir):
-    os.makedirs(train_dir)
+  train_dir = get_train_dir(FLAGS.train_file_path)
+
+  data_dir = FLAGS.data_dir
+  if data_dir == "data":
+    data_dir = train_dir
   first_train, second_train, first_dev, second_dev, _, _ = data_utils.prepare_data(
-      first_lang, second_lang, FLAGS.data_dir, train_file_path, dev_file_path, FLAGS.first_vocab_size, FLAGS.second_vocab_size)
+      FLAGS.first_lang, FLAGS.second_lang, data_dir, FLAGS.train_file_path, FLAGS.dev_file_path, FLAGS.first_vocab_size, FLAGS.second_vocab_size, tokenizer=FLAGS.token_type)
   with tf.Session() as sess:
     # Create model.
     print("Creating %d layers of %d units." % (FLAGS.num_layers, FLAGS.size))
-    model = create_model(sess, False)
+    model = create_model(sess, False, train_dir)
 
     # Read data into buckets and compute their sizes.
     print ("Reading development and training data (limit: %d)."
            % FLAGS.max_train_data_size)
-    dev_set = read_data(first_dev, second_dev)
-    train_set = read_data(first_train, second_train, FLAGS.max_train_data_size)
+    dev_set = read_data(first_dev, second_dev, FLAGS.token_type)
+    train_set = read_data(first_train, second_train, FLAGS.token_type, FLAGS.max_train_data_size)
     train_bucket_sizes = [len(train_set[b]) for b in xrange(len(_buckets))]
     train_total_size = float(sum(train_bucket_sizes))
 
@@ -183,7 +207,7 @@ def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, 
     current_step = 0
     previous_losses = []
     print("Start training")
-    for i in range(total_steps):
+    for i in range(FLAGS.steps_to_train):
       # Choose a bucket according to data distribution. We pick a random number
       # in [0, 1] and use the corresponding interval in train_buckets_scale.
       random_number_01 = np.random.random_sample()
@@ -196,6 +220,7 @@ def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, 
           train_set, bucket_id)
       _, step_loss, _ = model.step(sess, encoder_inputs, decoder_inputs,
                                    target_weights, bucket_id, False)
+      print("step loss: "+str(step_loss))
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
       loss += step_loss / FLAGS.steps_per_checkpoint
       current_step += 1
@@ -230,18 +255,23 @@ def train(first_lang, second_lang, train_file_path, dev_file_path, total_steps, 
         sys.stdout.flush()
 
 
-def decode(first_lang, second_lang, in_filename, out_filename):
+def decode():
   # print("Decoding from standard input")
   with tf.Session() as sess:
     # Create model and load parameters.
-    model = create_model(sess, True)
+    train_dir = get_train_dir(FLAGS.in_file_path)
+    model = create_model(sess, True, train_dir)
     model.batch_size = 1  # We decode one sentence at a time.
 
     # Load vocabularies.
+
+    data_dir = FLAGS.data_dir
+    if data_dir == "data":
+      data_dir = train_dir
     first_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d." % FLAGS.first_vocab_size + first_lang)
+                                 "vocab%d." % FLAGS.first_vocab_size + FLAGS.first_lang)
     second_vocab_path = os.path.join(FLAGS.data_dir,
-                                 "vocab%d." % FLAGS.second_vocab_size + second_lang)
+                                 "vocab%d." % FLAGS.second_vocab_size + FLAGS.second_lang)
     first_vocab, _ = data_utils.initialize_vocabulary(first_vocab_path)
     _, rev_second_vocab = data_utils.initialize_vocabulary(second_vocab_path)
 
@@ -250,11 +280,11 @@ def decode(first_lang, second_lang, in_filename, out_filename):
     # sys.stdout.flush()
     # sentence = sys.stdin.readline()
     # while sentence:
-    with open(in_filename, encoding="utf8") as in_file, open(out_filename, 'w', encoding="utf8") as out_file:
+    with open(FLAGS.in_file_path, encoding="utf8") as in_file, open(FLAGS.out_file_path, 'w', encoding="utf8") as out_file:
       for sentence in in_file:
-        # print("Input sentence: "+sentence)
+        print("Input sentence: "+sentence)
         # Get token-ids for the input sentence.
-        tokfirst_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), first_vocab)
+        tokfirst_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), first_vocab, tokenizer=FLAGS.token_type)
         # Which bucket does it belong to?
         bucket_id = len(_buckets) - 1
         for i, bucket in enumerate(_buckets):
@@ -279,6 +309,8 @@ def decode(first_lang, second_lang, in_filename, out_filename):
         output_sentence = " ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs])
         out_file.write("\n"+sentence+"\n")
         out_file.write(output_sentence+"\n")
+        print("\n"+sentence+"\n")
+        print(output_sentence+"\n")
         # print(" ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs]))
         # print("> ", end="")
         # sys.stdout.flush()
@@ -310,33 +342,37 @@ def main(args):
   if len(args) < 2:
     print("Enter train, decode, or test")
     return
+  if FLAGS.token_type=="chars":
+    _buckets = char_buckets
   if "test" in args[1]:
     self_test()
   elif "decode" in args[1]:
-    if len(args) > 5:
-      first_lang = args[2]
-      second_lang = args[3]
-      in_filename = args[4]
-      out_filename = args[5]
-      decode(first_lang, second_lang, in_filename, out_filename)
-    else:
-      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE INPUT_FILE OUTPUT_FILE")
+    # if len(args) > 5:
+    #   first_lang = args[2]
+    #   second_lang = args[3]
+    #   in_filename = args[4]
+    #   out_filename = args[5]
+      # decode(first_lang, second_lang, in_filename, out_filename)
+    decode()
+    # else:
+    #   print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE INPUT_FILE OUTPUT_FILE")
   else:
-    if len(args) > 6:
-      first_lang = args[2]
-      second_lang = args[3]
-      train_file_path = args[4]
-      dev_file_path = args[5]
-      num_steps = int(args[6])
-      if len(args) > 7:
-        output_dir = args[7]
-      else:
-        output_dir = FLAGS.train_dir
+    # if len(args) > 6:
+    #   first_lang = args[2]
+    #   second_lang = args[3]
+    #   train_file_path = args[4]
+    #   dev_file_path = args[5]
+    #   num_steps = int(args[6])
+    #   if len(args) > 7:
+    #     output_dir = args[7]
+    #   else:
+    #     output_dir = FLAGS.train_dir
       # tf.app.flags.DEFINE_string("first_lang", first_lang, "First language")
       # tf.app.flags.DEFINE_string("second_lang", second_lang, "Second language")
-      train(first_lang, second_lang, train_file_path, dev_file_path, num_steps, output_dir)
-    else:
-      print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE TRAIN_FILE_PATH DEV_FILE_PATH NUM_STEPS [OUTPUT_DIRECTORY]")
+      # train(first_lang, second_lang, train_file_path, dev_file_path, num_steps)
+      train()
+    # else:
+    #   print("USAGE: FIRST_LANGUAGE SECOND_LANGUAGE TRAIN_FILE_PATH DEV_FILE_PATH NUM_STEPS [OUTPUT_DIRECTORY]")
 
 if __name__ == "__main__":
   tf.app.run()
