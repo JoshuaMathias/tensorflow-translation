@@ -176,10 +176,11 @@ def basic_tokenizer(sentence):
 
 def char_tokenizer(sentence):
   """Split the sentence into a list of characters."""
-  chars = list(sentence.decode("utf-8"))
-  char_bytes = [c.encode("utf-8") for c in chars]
+  # chars = list(sentence.decode("utf-8"))
+  # char_bytes = [c.encode("utf-8") for c in chars]
   # print(char_bytes)
-  return char_bytes
+  return basic_tokenizer(sentence)
+  # return char_bytes
   # return [w for w in words if w]
 
 def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
