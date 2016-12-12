@@ -222,7 +222,10 @@ def train():
                                    target_weights, bucket_id, False)
       print("step loss: "+str(step_loss))
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
+      if FLAGS.token_type == "chars":
+        step_loss /= 10
       loss += step_loss / FLAGS.steps_per_checkpoint
+      
       current_step += 1
 
       # Once in a while, we save checkpoint, print statistics, and run evals.
@@ -307,10 +310,10 @@ def decode():
           outputs = outputs[:outputs.index(data_utils.EOS_ID)]
         # Print out sentence corresponding to outputs.
         output_sentence = " ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs])
-        out_file.write("\n"+sentence+"\n")
+        # out_file.write("\n"+sentence+"\n")
         out_file.write(output_sentence+"\n")
-        print("\n"+sentence+"\n")
-        print(output_sentence+"\n")
+        # print("\n"+sentence+"\n")
+        # print(output_sentence+"\n")
         # print(" ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs]))
         # print("> ", end="")
         # sys.stdout.flush()
