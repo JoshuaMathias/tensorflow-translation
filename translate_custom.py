@@ -259,7 +259,7 @@ def decode():
   # print("Decoding from standard input")
   with tf.Session() as sess:
     # Create model and load parameters.
-    train_dir = get_train_dir(FLAGS.in_file_path)
+    train_dir = get_train_dir(FLAGS.in_file_path.split(".")[0])
     model = create_model(sess, True, train_dir)
     model.batch_size = 1  # We decode one sentence at a time.
 
