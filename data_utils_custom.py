@@ -201,7 +201,10 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
       if None, basic_tokenizer will be used.
     normalize_digits: Boolean; if true, all digits are replaced by 0s.
   """
-
+  if tokenizer and tokenizer == "chars":
+    tokenizer = char_tokenizer
+  else:
+    tokenizer = basic_tokenizer
   if not gfile.Exists(vocabulary_path):
     print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
     vocab = {}
@@ -410,6 +413,8 @@ def prepare_data(first_lang, second_lang, data_dir, train_path, dev_path, first_
           first_vocab_path, second_vocab_path)
 
 if (sys.argv[1] == "clean"):
+  print("Cleaning file "+str(sys.argv[1]))
   clean_file(sys.argv[2])
 if (sys.argv[1] == "chars"):
+  print("Character tokenizing file "+str(sys.argv[2]))
   prepare_char_tokens(sys.argv[2])
