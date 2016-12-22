@@ -87,7 +87,7 @@ FLAGS = tf.app.flags.FLAGS
 _buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
 word_buckets = [(5, 10), (10, 15), (20, 25), (40, 50)]
 char_buckets = [(50, 100), (100, 150), (200, 250), (400, 450)]
-log = []
+logs = []
 
 def read_data(source_path, target_path, token_type, max_size=None):
   """Read data from source and target files and put into buckets.
@@ -238,7 +238,7 @@ def train():
         print ("global step %d learning rate %.4f step-time %.2f perplexity "
                "%.2f" % (eval_val, model.learning_rate.eval(),
                          step_time, perplexity))
-        log.append(str(eval_val)+"\t"+str(perplexity))
+        logs.append(str(eval_val)+"\t"+str(perplexity))
         # Decrease learning rate if no improvement was seen over last 3 times.
         if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
           sess.run(model.learning_rate_decay_op)
@@ -260,8 +260,8 @@ def train():
               "inf")
           print("  eval: bucket %d perplexity %.2f" % (bucket_id, eval_ppx))
         sys.stdout.flush()
-    for data in logs:
-      print(data)
+    for log in logs:
+      print(log)
 
 
 def decode():
