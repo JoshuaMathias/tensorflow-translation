@@ -79,7 +79,7 @@ tf.app.flags.DEFINE_boolean("self_test", False,
                             "Run a self-test if this is set to True.")
 tf.app.flags.DEFINE_boolean("use_fp16", False,
                             "Train using fp16 instead of fp32.")
-
+tf.app.flags.DEFINE_integer("keep_prob",1.0,"The keep probability used for dropout.")
 FLAGS = tf.app.flags.FLAGS
 
 # We use a number of buckets and pad to the closest one for efficiency.
@@ -145,7 +145,8 @@ def create_model(session, forward_only, train_dir):
       FLAGS.learning_rate,
       FLAGS.learning_rate_decay_factor,
       forward_only=forward_only,
-      use_lstm=use_lstm)
+      use_lstm=use_lstm,
+      keep_prob=FLAGS.keep_prob)
       # dtype=dtype)
   ckpt = tf.train.get_checkpoint_state(train_dir)
   try:
@@ -164,7 +165,7 @@ def create_model(session, forward_only, train_dir):
 def get_train_dir(file_path):
   train_dir = FLAGS.train_dir
   if train_dir == "training":
-    train_dir = FLAGS.train_dir + os.path.sep + file_path + "_"+FLAGS.token_type+"_"+str(FLAGS.num_layers)+"_"+str(FLAGS.size)+"_"+FLAGS.cell_type
+    train_dir = FLAGS.train_dir + os.path.sep + file_path + "_"+FLAGS.token_type+"_"+str(FLAGS.num_layers)+"_"+str(FLAGS.size)+"_"+FLAGS.cell_type+"_"+FLAGS.keep_prob
   if not os.path.exists(train_dir):
     os.makedirs(train_dir)
   return train_dir

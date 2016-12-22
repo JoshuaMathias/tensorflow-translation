@@ -56,7 +56,8 @@ class Seq2SeqModel(object):
                use_lstm=False,
                num_samples=512,
                forward_only=False,
-               dtype=tf.float32):
+               dtype=tf.float32,
+               keep_prob=1.0):
     """Create the model.
 
     Args:
@@ -121,6 +122,8 @@ class Seq2SeqModel(object):
     if num_layers > 1:
       cell = tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers)
 
+    if self.keep_prob < 1.0:
+      cell = tf.nn.dropout(cell, self.keep_prob)
     # The seq2seq function: we use embedding for the input and attention.
     def seq2seq_f(encoder_inputs, decoder_inputs, do_decode):
       return tf.nn.seq2seq.embedding_attention_seq2seq(
@@ -176,8 +179,8 @@ class Seq2SeqModel(object):
     if not forward_only:
       self.gradient_norms = []
       self.updates = []
-      # opt = tf.train.GradientDescentOptimizer(self.learning_rate)
-      opt = tf.train.AdamOptimizer(self.learning_rate)
+      opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+      # opt = tf.train.AdamOptimizer(self.learning_rate)
       for b in xrange(len(buckets)):
         gradients = tf.gradients(self.losses[b], params)
         clipped_gradients, norm = tf.clip_by_global_norm(gradients,
