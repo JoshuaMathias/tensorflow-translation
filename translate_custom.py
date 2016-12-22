@@ -291,7 +291,7 @@ def decode():
     # while sentence:
     with open(FLAGS.in_file_path, encoding="utf8") as in_file, open(FLAGS.out_file_path, 'w', encoding="utf8") as out_file:
       for sentence in in_file:
-        print("Input sentence: "+sentence)
+        # print("Input sentence: "+sentence)
         # Get token-ids for the input sentence.
         tokfirst_ids = data_utils.sentence_to_token_ids(tf.compat.as_bytes(sentence), first_vocab, tokenizer=FLAGS.token_type)
         # Which bucket does it belong to?
@@ -300,8 +300,8 @@ def decode():
           if bucket[0] >= len(tokfirst_ids):
             bucket_id = i
             break
-        else:
-          logging.warning("Sentence truncated: %s", sentence) 
+        # else:
+          # logging.warning("Sentence truncated: %s", sentence) 
 
         # Get a 1-element batch to feed the sentence to the model.
         encoder_inputs, decoder_inputs, target_weights = model.get_batch(
@@ -317,6 +317,7 @@ def decode():
         # Print out sentence corresponding to outputs.
         output_sentence = " ".join([tf.compat.as_str(rev_second_vocab[output]) for output in outputs])
         # out_file.write("\n"+sentence+"\n")
+        out_file.write("input: "+sentence+"\n")
         out_file.write(output_sentence+"\n")
         # print("\n"+sentence+"\n")
         # print(output_sentence+"\n")
