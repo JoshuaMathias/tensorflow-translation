@@ -165,7 +165,7 @@ def create_model(session, forward_only, train_dir):
 def get_train_dir(file_path):
   train_dir = FLAGS.train_dir
   if train_dir == "training":
-    train_dir = FLAGS.train_dir + os.path.sep + file_path + "_"+FLAGS.token_type+"_"+str(FLAGS.num_layers)+"_"+str(FLAGS.size)+"_"+FLAGS.cell_type+"_"+FLAGS.keep_prob
+    train_dir = FLAGS.train_dir + os.path.sep + file_path + "_"+FLAGS.token_type+"_"+str(FLAGS.num_layers)+"_"+str(FLAGS.size)+"_"+FLAGS.cell_type+"_"+str(FLAGS.keep_prob)
   if not os.path.exists(train_dir):
     os.makedirs(train_dir)
   return train_dir
