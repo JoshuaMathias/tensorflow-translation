@@ -90,7 +90,7 @@ class Seq2SeqModel(object):
     self.learning_rate_decay_op = self.learning_rate.assign(
         self.learning_rate * learning_rate_decay_factor)
     self.global_step = tf.Variable(0, trainable=False)
-
+    self.keep_prob = keep_prob
     # If we use sampled softmax, we need an output projection.
     output_projection = None
     softmax_loss_function = None
