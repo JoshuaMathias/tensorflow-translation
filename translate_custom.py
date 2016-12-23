@@ -224,8 +224,8 @@ def train():
                                    target_weights, bucket_id, False)
       print("step loss: "+str(step_loss))
       step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
-      if FLAGS.token_type == "chars":
-        step_loss /= 10
+      # if FLAGS.token_type == "chars":
+      #   step_loss /= 10
       loss += step_loss / FLAGS.steps_per_checkpoint
       
       current_step += 1
